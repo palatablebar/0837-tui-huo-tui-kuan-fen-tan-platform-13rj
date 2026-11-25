@@ -1,0 +1,24 @@
+{
+  "profile": "clean-mixed-payments",
+  "unit": "cents",
+  "orders": {
+    "O1": [
+      {"channel": "gift_card", "amount": 5000, "line_id": "O1L1"},
+      {"channel": "balance", "amount": 5000},
+      {"channel": "bank_card", "amount": 10000}
+    ],
+    "O2": [
+      {"channel": "gift_card", "amount": 2000, "line_id": "O2L1"},
+      {"channel": "balance", "amount": 3000},
+      {"channel": "bank_card", "amount": 5000}
+    ],
+    "O3": [
+      {"channel": "gift_card", "amount": 1000},
+      {"channel": "balance", "amount": 2000},
+      {"channel": "bank_card", "amount": 3000}
+    ],
+    "O4": [
+      {"channel": "balance", "amount": 100}
+    ]
+  }
+}

@@ -1,4 +1,6 @@
-from flask import Blueprint, abort, jsonify, request, send_file
+import hashlib
+
+from flask import Blueprint, current_app, abort, jsonify, request, send_file
 
 from app.catalog import SPEC
 from app.config import SAMPLES
@@ -15,6 +17,10 @@ STAGE_INDEX = {"intake": 1, "prepare": 2, "calculate": 3, "decision": 4, "reconc
 def store():
     from flask import current_app
     return current_app.extensions["runs"]
+
+
+def refund_service():
+    return current_app.extensions["refund_service"]
 
 
 @api.get("/api/catalog")
@@ -35,7 +41,10 @@ def stage(stage_id):
     data = request.get_json(silent=True) or {}
     profile = data.get("profile", "dirty")
     upto = SPEC["stages"][STAGE_INDEX[stage_id] - 1]
-    return jsonify(pipeline(profile, upto=upto))
+    payload = pipeline(profile, upto=upto)
+    if STAGE_INDEX[stage_id] >= 3:
+        refund_service().attach_previews(payload)
+    return jsonify(payload)
 
 
 @api.post("/api/runs")
@@ -43,7 +52,19 @@ def create():
     data = request.get_json(silent=True) or {}
     profile = data.get("profile", "dirty")
     payload = pipeline(profile)
-    return jsonify(create_run(store(), payload))
+    refund_service().attach_previews(payload)
+    payment_rows = refund_service().list_payments()
+    if payment_rows:
+        payment_digest = hashlib.sha256(
+            "|".join(row["order_id"] + ":" + str(row["revision"]) + ":" + row["digest"]
+                     for row in payment_rows).encode("utf-8")
+        ).hexdigest()[:24]
+        payload["payment_state_digest"] = payment_digest
+        payload["run_key"] = hashlib.sha256((payload["run_key"] + payment_digest).encode("utf-8")).hexdigest()[:24]
+    run = create_run(store(), payload)
+    records = refund_service().provision_run_refunds(run, issue=run.get("status") == "APPROVED")
+    run["refund_records"] = records
+    return jsonify(run)
 
 
 @api.get("/api/runs/<run_id>")
@@ -51,6 +72,7 @@ def get_run(run_id):
     run = serialize(store().get(run_id))
     if not run:
         raise DomainIssue("RUN_NOT_FOUND", 404)
+    run["refund_records"] = refund_service().ledger.list_refunds(run_id=run_id)
     return jsonify(run)
 
 
@@ -59,12 +81,39 @@ def review(run_id):
     data = request.get_json(silent=True) or {}
     if "decision" not in data or "expected_revision" not in data:
         raise DomainIssue("BAD_REQUEST")
-    return jsonify(approve(store(), run_id, data["decision"], data.get("comment", ""), int(data["expected_revision"])))
+    run = approve(store(), run_id, data["decision"], data.get("comment", ""), int(data["expected_revision"]))
+    if data["decision"] == "APPROVED" and run.get("status") == "APPROVED":
+        run["refund_records"] = refund_service().provision_run_refunds(run, issue=True)
+    else:
+        run["refund_records"] = refund_service().ledger.list_refunds(run_id=run_id)
+    return jsonify(run)
+
+
+@api.post("/api/runs/<run_id>/rerun")
+def rerun_run(run_id):
+    run = serialize(store().get(run_id))
+    if not run:
+        raise DomainIssue("RUN_NOT_FOUND", 404)
+    # 已签发批次/退款保持原金额；未签发草稿按最新补数据重新计算拆分。
+    issue = run.get("status") == "APPROVED"
+    run["refund_records"] = refund_service().provision_run_refunds(run, issue=issue)
+    run["replayed"] = issue
+    return jsonify(run)
 
 
 @api.get("/api/runs/<run_id>/evidence")
 def evidence(run_id):
     run = serialize(store().get(run_id))
+    if not run:
+        raise DomainIssue("RUN_NOT_FOUND", 404)
+    refund_data = refund_service().list_refunds(run_id=run_id)
+    refund_data["reconciliation"] = refund_service().reconcile()
+    run["refund_ledger"] = {
+        "refunds": refund_data["refunds"],
+        "channel_entries": refund_data["channel_entries"],
+        "summary": refund_data["summary"],
+        "reconciliation": refund_data["reconciliation"],
+    }
     return jsonify(render(run))
 
 

@@ -27,6 +27,49 @@
       <div class="panel-head"><h2>运行对账</h2></div>
       <div class="ledger" id="ledger-list"></div>
     </article>
+    <article class="panel" id="panel-refunds">
+      <div class="panel-head">
+        <h2>退款渠道拆分</h2>
+        <span class="hint" id="refund-summary">按原付款构成拆分</span>
+      </div>
+      <div class="refund-workspace">
+        <form id="refund-form" class="refund-form">
+          <div class="refund-inputs">
+            <label>订单号
+              <input id="refund-order" name="order_id" value="O1" autocomplete="off" required>
+            </label>
+            <label>应退金额（元）
+              <input id="refund-amount" name="refund_amount_yuan" type="number" min="0" step="0.01" value="45.00" required>
+            </label>
+            <label>幂等/退款键（可选）
+              <input id="refund-key" name="refund_key" placeholder="同一笔退款重跑保持不变" autocomplete="off">
+            </label>
+          </div>
+          <fieldset class="payment-editor">
+            <legend>原付款构成；渠道行可填行号，表示礼品卡等只支付了指定商品行</legend>
+            <div id="payment-rows" class="payment-rows"></div>
+            <button type="button" id="add-payment-row" class="secondary">添加付款渠道</button>
+          </fieldset>
+          <div class="review-actions">
+            <button type="button" id="save-payments" class="secondary">补存付款构成</button>
+            <button type="button" id="load-demo-payments" class="secondary">载入 clean 混付样例</button>
+            <button type="submit" id="calculate-split">生成/重算拆分</button>
+            <button type="button" id="issue-split" disabled>签发当前拆分</button>
+            <button type="button" id="refresh-refunds" class="secondary">刷新退款流水</button>
+          </div>
+          <p class="hint">规则：各渠道“已退 + 待处理”之和等于订单应退；单一渠道累计已退不超过该渠道原实付，溢出只等待，不改道。</p>
+        </form>
+        <div id="split-detail" class="split-detail" aria-live="polite">
+          <p class="empty">选择或生成一笔退款后，这里显示每个渠道的到账/待处理金额。</p>
+        </div>
+        <div class="table-wrap">
+          <table class="refund-table">
+            <thead id="refund-head"></thead>
+            <tbody id="refund-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </article>
     <article class="panel" id="panel-review">
       <div class="panel-head"><h2>批次复核</h2><span class="hint" id="revision">rev 0</span></div>
       <div class="review">

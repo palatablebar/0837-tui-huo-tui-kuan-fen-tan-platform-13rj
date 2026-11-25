@@ -58,9 +58,22 @@ def pipeline(profile="dirty", path=None, upto="证据交付"):
     else:
         for item in results[:18]:
             rows.append({key: value for key, value in item.items()
-                         if key in {"label", "verdict", "reason", "metric", "limit", "status", "state", "breakdown"}
+                         if key in {"label", "order_id", "verdict", "reason", "metric", "limit", "status", "state",
+                                    "breakdown", "lines", "channel_split"}
                          or key in SPEC["columns"] or key in SPEC["result_columns"]})
     source = {"profile": profile, "filename": Path(intake["path"]).name, "sha256": intake["sha256"]}
+    refund_splits = []
+    if _stage(upto) >= 3:
+        for item in results:
+            split = item.get("channel_split") or {}
+            refund_splits.append({
+                "order_id": item.get("label") or item.get("order_id"),
+                "refund_amount": item.get("refund", 0),
+                "allocated_amount": split.get("allocated_amount", item.get("refund", 0)),
+                "pending_amount": split.get("pending_amount", 0),
+                "status": split.get("status", "COMPLETE"),
+                "channels": split.get("channels", item.get("payment_splits", [])),
+            })
     payload = {
         "project": SPEC["code"] + " " + SPEC["name"],
         "rule": SPEC["rule_short"],
@@ -69,6 +82,8 @@ def pipeline(profile="dirty", path=None, upto="证据交付"):
         "counts": intake["counts"],
         "issues": issues[:60],
         "rows": rows,
+        "order_results": results,
+        "refund_splits": refund_splits,
         "row_kind": "source" if raw_stage else "result",
         "chart": chart,
         "summary": summary,

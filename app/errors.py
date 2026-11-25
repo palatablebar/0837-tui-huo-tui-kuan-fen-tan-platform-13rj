@@ -18,6 +18,17 @@ MESSAGES = {
     "GATE_BLOCKED": "存在阻断项，不能签发",
     "NOT_APPROVED": "批次尚未签发",
     "BAD_REQUEST": "请求内容不完整",
+    "ORDER_ID_REQUIRED": "缺少订单号",
+    "PAYMENTS_REQUIRED": "缺少原付款构成",
+    "PAYMENTS_NOT_FOUND": "尚未补录该订单的付款构成",
+    "REFUND_AMOUNT_REQUIRED": "缺少订单应退金额",
+    "REFUND_ID_REQUIRED": "缺少退款单号或幂等键",
+    "REFUND_NOT_FOUND": "退款单不存在",
+    "SPLIT_STALE": "补数据后拆分已失效，请重新计算",
+    "STALE_PAYMENT_REVISION": "付款构成版本已更新，请刷新后重试",
+    "PARENT_REFUND_NOT_ISSUED": "原退款尚未签发，不能另出差额单",
+    "DIFFERENCE_AMOUNT_REQUIRED": "缺少补退差额或最新应退总额",
+    "NO_POSITIVE_DIFFERENCE": "没有需要补退的正差额",
 }
 
 

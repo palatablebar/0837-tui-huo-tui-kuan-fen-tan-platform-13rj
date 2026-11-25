@@ -25,23 +25,37 @@
       return '<li>' + esc(item) + '</li>';
     }).join('') + '</ul></details>';
   }
+  function renderChannelSplit(split) {
+    if (!split || !split.channels) return '';
+    var parts = split.channels
+      .filter(function (item) { return item.amount || item.pending_amount || item.requested_amount; })
+      .map(function (item) {
+        var label = item.channel_label || item.channel;
+        var text = label + ' ' + (item.amount / 100).toFixed(2);
+        if (item.pending_amount) text += '（待 ' + (item.pending_amount / 100).toFixed(2) + '）';
+        return esc(text);
+      });
+    return '<small class="channel-split-cell">' + parts.join('<br>') + '</small>';
+  }
   function renderRows(data) {
     var labels = Object.assign({label: '记录'}, state.resultColumns);
     var source = data.row_kind === 'source';
     var hasBreakdown = data.rows.some(function (row) { return row.breakdown && row.breakdown.length; });
+    var hasChannel = data.rows.some(function (row) { return row.channel_split && row.channel_split.channels; });
     var keys = source ? state.inputColumns : Object.keys(labels).filter(function (key) {
       return data.rows.some(function (row) { return Object.hasOwn(row, key); });
     });
     $('row-count').textContent = source ? data.rows.length + ' 行预览' :
       data.summary.PASS + ' 通过 / ' + data.summary.REVIEW + ' 复核 / ' + data.summary.REJECT + ' 阻断';
-    var tail = source ? '' : '<th>结论</th>' + (hasBreakdown ? '<th>计算分项</th>' : '');
+    var tail = source ? '' : (hasChannel ? '<th>渠道拆分（元）</th>' : '') + '<th>结论</th>' + (hasBreakdown ? '<th>计算分项</th>' : '');
     $('row-head').innerHTML = '<tr>' + keys.map(function (key) { return '<th>' + esc(labels[key] || key) + '</th>'; }).join('') + tail + '</tr>';
     $('row-body').innerHTML = data.rows.length ? data.rows.map(function (row) {
       var values = keys.map(function (key) { return '<td class="' + (typeof row[key] === 'number' ? 'num' : '') + '">' + esc(row[key]) + '</td>'; }).join('');
+      var channel = !source && hasChannel ? '<td class="channel-table-cell">' + renderChannelSplit(row.channel_split) + '</td>' : '';
       var verdict = source ? '' : '<td><span class="verdict" data-v="' + esc(row.verdict) + '">' + esc(row.verdict || '') + '</span><br><small>' + esc(row.reason || '') + '</small></td>';
       var breakdown = hasBreakdown ? '<td>' + renderBreakdown(row.breakdown) + '</td>' : '';
-      return '<tr>' + values + verdict + breakdown + '</tr>';
-    }).join('') : '<tr><td class="empty" colspan="' + (keys.length + (source ? 0 : 1)) + '">没有可展示条目</td></tr>';
+      return '<tr>' + values + channel + verdict + breakdown + '</tr>';
+    }).join('') : '<tr><td class="empty" colspan="' + (keys.length + (source ? 0 : 1) + (hasChannel ? 1 : 0) + (hasBreakdown ? 1 : 0)) + '">没有可展示条目</td></tr>';
   }
   function renderLedger(data) {
     if (!data.ledger) { $('ledger-list').innerHTML = '<p class="empty">运行对账后显示</p>'; return; }
@@ -99,6 +113,7 @@
       $('hold').disabled = state.approved;
       $('download').hidden = !state.approved;
       if (state.approved) $('download').href = '/api/runs/' + run.run_id + '/evidence';
+      if (window.refreshRefunds) window.refreshRefunds(run.refund_records && run.refund_records[0] && run.refund_records[0].id);
     } catch (error) { setNotice(error.message); }
     finally { $('run').disabled = false; }
   }
@@ -117,6 +132,7 @@
       $('hold').disabled = true;
       $('download').hidden = !state.approved;
       if (state.approved) $('download').href = '/api/runs/' + run.run_id + '/evidence';
+      if (window.refreshRefunds) window.refreshRefunds(run.refund_records && run.refund_records[0] && run.refund_records[0].id);
     } catch (error) { setNotice(error.message); }
   }
   async function boot() {

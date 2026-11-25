@@ -26,12 +26,37 @@ def calculate_rows(items):
         problem = None
         if any(len({line[field] for line in lines}) != 1 for field in ("discount_total", "payment", "freight")):
             problem = "ORDER_FIELDS_CONFLICT"
-        out.append({"label": order_id, "refund": refund, "discount": discount,
+        result = {"label": order_id, "order_id": order_id, "refund": refund, "discount": discount,
                     "gross": gross, "payment": lines[0]["payment"], "problem": problem,
                     "freight_refund": freight_refund,
+                    "lines": [{"line_id": line["line_id"], "refund": line["refund"],
+                               "alloc_discount": line["alloc_discount"], "net_line": line["net_line"],
+                               "line_amount": line["line_amount"], "qty": line["qty"],
+                               "return_qty": line["return_qty"]}
+                              for line in lines],
                     "breakdown": [f'{line["line_id"]} · 分摊 {line["alloc_discount"]} 分 · 应退 {line["refund"]} 分'
                                   for line in lines],
-                    "metric": refund, "limit": lines[0]["payment"]})
+                    "metric": refund, "limit": lines[0]["payment"]}
+        try:
+            from app.refunds.allocation import split_refund
+            payment_input = None
+            for field in ("payment_channels", "payments", "channel_payments", "tenders"):
+                payment_input = lines[0].get(field)
+                if payment_input:
+                    break
+            result["channel_split"] = split_refund(
+                order_id=order_id,
+                refund_amount=refund,
+                payments=payment_input,
+                payment=lines[0]["payment"],
+                lines=result["lines"],
+                freight_refund=freight_refund,
+            )
+            result["payment_splits"] = result["channel_split"]["channels"]
+        except Exception:
+            # 渠道补数据缺失或格式异常不应破坏原有优惠/退款计算。
+            pass
+        out.append(result)
     for item in out:
         item.setdefault("label", str(item.get(SPEC["key"], "")))
     return out
